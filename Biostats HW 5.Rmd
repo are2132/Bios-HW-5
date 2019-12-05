@@ -1,0 +1,15 @@
+---
+title: "P8130 Biostats Methods Homework 5"
+author: "Alison Elgass"
+output: github_document
+---
+
+```{r}
+library(tidyverse)
+library(dplyr)
+```
+
+```{r}
+properties = read_csv("./CommercialProperties.csv")
+```
+
