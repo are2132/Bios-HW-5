@@ -7,8 +7,161 @@ output: github_document
 ```{r}
 library(tidyverse)
 library(dplyr)
+library(faraway)
+library(broom)
+library(purrr)
 ```
 
+# Problem 1
+```{r}
+states = as_tibble(state.x77) %>% janitor::clean_names()
+```
+
+## Part a
+```{r}
+summary(states) %>% knitr::kable()
+attach(states)
+```
+
+## Part b
+```{r}
+#par(mfrow=c(1,1))
+plot(income, life_exp) #some + linear
+hist(income)
+
+plot(illiteracy, life_exp) #linear -, outliers
+hist(illiteracy)
+
+plot(murder, life_exp) #linear -
+plot(hs_grad, life_exp) #linear +, outliers
+```
+
+## Part c
+### backward elimination
+```{r backward}
+#fit regression model with all predictors
+mult.fit <- lm(life_exp ~ ., data = states)
+summary(mult.fit)
+
+#eliminate variables by highest p-val
+step1 = update(mult.fit, . ~ . -area)
+summary(step1)
+
+step2 = update(step1, . ~ . -illiteracy)
+summary(step2)
+
+step3 = update(step2, . ~ . -income)
+summary(step3) #R2 =0.736, R2adj = 0.7126
+
+step4 = update(step3, . ~ . -population) #close, p-val = 0.052
+summary(step4) #R2 =0.713, R2adj = 0.694  LOWER
+```
+The step3 model includes: population, murder, hs_grad, frost  
+The p-value in this model for population is 0.052.  
+Since this is close to the often-used 0.05 threshold, we check the model if population is additonally removed.  
+  
+This step4 model includes: murder, hs_grad, frost  
+However this model has a slightly lower R^2^ (0.713 vs. 0.736) and R^2^ adjusted (0.694 vs. 0.713), so I would go with the step3 model which includes population.  
+  
+### forward elimination
+```{r forward}
+#function to nicely extract p-value of last variable from broom::tidy
+pvals = function(fitn) {
+  p = tidy(fitn)$p.value[nrow(tidy(fitn))]
+  p
+}
+
+#0. start with single variables
+fit1 = lm(life_exp ~ population, data = states)
+fit2 = lm(life_exp ~ income, data = states)
+fit3 = lm(life_exp ~ illiteracy, data = states)
+fit4 = lm(life_exp ~ murder, data = states)
+fit5 = lm(life_exp ~ hs_grad, data = states)
+fit6 = lm(life_exp ~ frost, data = states)
+fit7 = lm(life_exp ~ area, data = states)
+
+fits = tibble(fit1, fit2, fit3, fit4, fit5, fit6, fit7)
+map(.x = fits, ~ pvals(.x)) #get all p-values
+
+#1. lowest p-val = murder (fit4)
+forward1 = lm(life_exp ~ murder, data = states)
+# update forward1 by trying to add each other predictor
+fit1 = update(forward1, . ~ . +population)
+fit2 = update(forward1, . ~ . +income)
+fit3 = update(forward1, . ~ . +illiteracy)
+fit4 = update(forward1, . ~ . +hs_grad)
+fit5 = update(forward1, . ~ . +frost)
+fit6 = update(forward1, . ~ . +area)
+
+fits = tibble(fit1, fit2, fit3, fit4, fit5, fit6)
+map(.x = fits, ~ pvals(.x)) #get all p-values
+
+#2. next lowest p-val = hs grad (fit4)
+forward2 = update(forward1, . ~ . +hs_grad)
+# update forward2 by trying to add each other predictor
+fit1 = update(forward2, . ~ . +population)
+fit2 = update(forward2, . ~ . +income)
+fit3 = update(forward2, . ~ . +illiteracy)
+fit4 = update(forward2, . ~ . +frost)
+fit5 = update(forward1, . ~ . +area)
+
+fits = tibble(fit1, fit2, fit3, fit4, fit5)
+map(.x = fits, ~ pvals(.x)) #get all p-values
+
+#3. next lowest p-val = frost (fit4)
+forward3 = update(forward2, . ~ . +frost)
+# update forward3 by trying to add each other predictor
+fit1 = update(forward3, . ~ . +population)
+fit2 = update(forward3, . ~ . +income)
+fit3 = update(forward3, . ~ . +illiteracy)
+fit4 = update(forward3, . ~ . +area)
+
+fits = tibble(fit1, fit2, fit3, fit4)
+map(.x = fits, ~ pvals(.x)) #no significant p-values
+#close though- adding population (fit1) p-value = 0.052
+
+summary(forward3) #no population, R2adj = 0.69
+summary(fit1) #population added, R2dj = 0.71
+```
+
+We run into the same close call with population. The forward3 model includes murder, hs grad, and frost; the p-value for population is 0.052. Again though the model with population included has a higher R^2^ so I choose to go with this one.  
+  
+The subset includes murder, hs_grad, frost, and population.
+
+### illiteracy vs. hs graduation rate
+```{r}
+plot(hs_grad, illiteracy)
+```
+There appears to be a very weak negative relationship (higher graduation rates correlate with lower illiteracy rates aka higher literacy). The subset includes only hs_grad rate.
+
+## Part d
+```{r}
+aa = regsubsets(life_exp ~ ., data=states)
+bb = summary(aa)
+
+par(mfrow=c(1,2))
+plot(1:7, bb$cp, xlab="# of predictors", ylab="Cp Statistic")
+plot(1:7, bb$adjr2, xlab="# of predictors", ylab="Adj R2")
+```
+
+These plots indicate 4 predictors is optimal, with the lowest C~p~ and highest adjusted R^2^.  
+
+## Part e
+My final model, then, would include the following 4 predictors: murder, hs graduation rate, frost, and population.  
+
+```{r}
+final = lm(life_exp ~ murder + hs_grad + frost + population)
+summary(final)
+```
+
+Life expectancy = 71.03 - 0.3X~murder~ + 0.00466X~grad~ - 
+0.00594X~frost~ + 0.00005X~population~  
+  
+## Part f
+I would conclude that life expectancy can be predicted best by these variables. Increasing murder rates and frost have a negative effect on life expectancy; for example, we would expect a 1% increase in murder rate to result in a decrease of 0.3 years of life expectancy. Oppositely, high school graduation rate and population have a positive association with life expectancy, though population was a tough call since it may or may not be significant. Overall this model is based only on the data given, which means it's limited in its predictive ability and generalizability, especially since the data is ecological.  
+
+
+# Problem 2
 ```{r}
 properties = read_csv("./CommercialProperties.csv")
 ```
