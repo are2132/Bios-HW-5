@@ -19,7 +19,7 @@ states = as_tibble(state.x77) %>% janitor::clean_names()
 
 ## Part a
 ```{r}
-summary(states) %>% knitr::kable()
+summary(states)
 attach(states)
 ```
 
@@ -41,20 +41,20 @@ plot(hs_grad, life_exp) #linear +, outliers
 ```{r backward}
 #fit regression model with all predictors
 mult.fit <- lm(life_exp ~ ., data = states)
-summary(mult.fit)
+tidy(mult.fit)
 
 #eliminate variables by highest p-val
 step1 = update(mult.fit, . ~ . -area)
-summary(step1)
+tidy(step1)
 
 step2 = update(step1, . ~ . -illiteracy)
-summary(step2)
+tidy(step2)
 
 step3 = update(step2, . ~ . -income)
-summary(step3) #R2 =0.736, R2adj = 0.7126
+tidy(step3) #R2 =0.736, R2adj = 0.7126
 
 step4 = update(step3, . ~ . -population) #close, p-val = 0.052
-summary(step4) #R2 =0.713, R2adj = 0.694  LOWER
+tidy(step4) #R2 =0.713, R2adj = 0.694  LOWER
 ```
 The step3 model includes: population, murder, hs_grad, frost  
 The p-value in this model for population is 0.052.  
@@ -136,7 +136,7 @@ There appears to be a very weak negative relationship (higher graduation rates c
 
 ## Part d
 ```{r}
-aa = regsubsets(life_exp ~ ., data=states)
+aa = leaps::regsubsets(life_exp ~ ., data=states)
 bb = summary(aa)
 
 par(mfrow=c(1,2))
