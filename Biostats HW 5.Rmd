@@ -1,7 +1,7 @@
 ---
 title: "P8130 Biostats Methods Homework 5"
 author: "Alison Elgass"
-output: github_document
+output: pdf_document
 ---
 
 ```{r}
@@ -144,7 +144,7 @@ plot(1:7, bb$cp, xlab="# of predictors", ylab="Cp Statistic")
 plot(1:7, bb$adjr2, xlab="# of predictors", ylab="Adj R2")
 ```
 
-These plots indicate 4 predictors is optimal, with the lowest C~p~ and highest adjusted R^2^.  
+These plots indicate 4 predictors is optimal, with the lowest C~p~ and highest adjusted R^2^. This confirms my inclination from stepwise procedures to include population as a predictor.
 
 ## Part e
 My final model, then, would include the following 4 predictors: murder, hs graduation rate, frost, and population.  
@@ -163,6 +163,66 @@ I would conclude that life expectancy can be predicted best by these variables. 
 
 # Problem 2
 ```{r}
-properties = read_csv("./CommercialProperties.csv")
+properties = read_csv("./CommercialProperties.csv") %>% janitor::clean_names()
 ```
+
+## Part a
+```{r}
+full = lm(rental_rate ~ ., data = properties)
+summary(full)
+```
+All predictors appear to be highly significant except for vacancy rate, which has a p-value of 0.57. The adjusted R^2^ is 0.563, so the model fits okay.
+
+## Part b
+```{r}
+attach(properties)
+
+par(mfrow=c(1,3))
+plot(age, rental_rate)
+plot(taxes, rental_rate)
+plot(sq_footage, rental_rate)
+```
+The relationship between age and rental rate seems very week; at first I could not even discern the direction of association. Taxes and square footage are better, both with a clear positive association with rental rate.
+
+## Part c
+```{r}
+better = lm(rental_rate ~ age + taxes + sq_footage, data = properties)
+summary(better)
+```
+
+## Part d
+```{r}
+par(mfrow=c(1,1))
+plot(age, rental_rate)
+
+# HIGHER ORDER: age^2 quadratic
+properties2 = mutate(properties, age2 = age^2)
+quadfit = lm(rental_rate ~ age + taxes + sq_footage + age2,
+               data = properties2)
+summary(quadfit)
+
+
+# KNOTS - piecewise linear regression: 2 knots at 5, 10
+propertiesK = mutate(properties, 
+                     spline_5 = (age - 5) * (age >= 5),
+                     spline_10 = (age - 10) * (age >= 10))
+
+piecefit = lm(rental_rate ~ age + taxes + sq_footage + 
+                spline_5 + spline_10, data = propertiesK)
+summary(piecefit)
+```
+
+I tried both a quadratic model and a piecewise model, with splice points at age = 5 and age = 10, which is where I see big clusters. The quadratic seems like the better choice visually and statistically.
+
+## Part e
+```{r}
+anova(better, quadfit)
+```
+The adjusted R^2^ for my model in part c (which includes age, taxes, and square footage as predictors) = 0.567, while the adjusted R^2^ for the quadratic model in part d = 0.593 and has a slightly lower residual standard error. We can do an ANOVA test comparing the 2 models where  
+H~0~: model 1 (part c) is better  
+H~1~: quadratic model (part d) is better  
+  
+The test stat F = 5.91 and p-value = 0.017, so I would reject the null and say the quadratic model is better.  
+  
+In subsequent analyses I would also look at other higher order models and possible transformations to age based on the data.
 
